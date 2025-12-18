@@ -29,8 +29,9 @@ def load_data():
     except Exception as e:
         return None, None, None
 
-# --- 2. 이미지 리사이징 (200x200) ---
-def load_and_resize_image(image_path, size=(200, 200)):
+# --- 2. 이미지 리사이징 (250x250) ---
+# 폰 화면에서 적당히 2/3 정도 차지하도록 크기 지정
+def load_and_resize_image(image_path, size=(250, 250)):
     try:
         img = Image.open(image_path)
         img_fixed = ImageOps.fit(img, size, Image.Resampling.LANCZOS)
@@ -45,29 +46,41 @@ if 'step' not in st.session_state:
     st.session_state.quiz_set = []
     st.session_state.feedback = None
 
-# --- 스타일 설정 (모바일 1줄 4버튼 강제) ---
+# --- [핵심] 스타일 설정 (강제 가로 정렬) ---
 st.markdown("""
     <style>
-        /* 카톡 상단바 가림 방지 여백 */
+        /* 1. 모바일 자동 세로 정렬 방지 (가장 중요) */
+        /* 화면이 좁아도 컬럼의 너비를 강제로 25%로 고정합니다. */
+        [data-testid="column"] {
+            width: 25% !important;
+            flex: 1 1 25% !important;
+            min-width: 0 !important;
+        }
+        
+        /* 2. 상단바 여백 */
         .block-container {
             padding-top: 3rem !important;
-            padding-left: 0.5rem !important; /* 좌우 여백도 최소화 */
+            padding-bottom: 1rem !important;
+            padding-left: 0.5rem !important;
             padding-right: 0.5rem !important;
         }
-        /* 버튼 스타일: 1줄 4개를 위해 극단적 축소 */
+        
+        /* 3. 버튼 스타일: 아주 작고 타이트하게 */
         div.stButton > button {
             width: 100% !important;
-            padding: 0.4rem 0.1rem !important; /* 위아래 패딩 약간 확보, 좌우는 최소 */
-            font-size: 12px !important; /* 폰트 크기 축소 */
+            padding: 0.5rem 0.1rem !important;
+            font-size: 12px !important;
             margin: 0px !important;
-            min-height: 0px !important;
             height: auto !important;
-            white-space: nowrap; /* 줄바꿈 절대 방지 */
+            white-space: nowrap; /* 줄바꿈 방지 */
+            border-radius: 5px;
         }
-        /* 컬럼 사이 간격 거의 없앰 */
-        div[data-testid="column"] {
-            gap: 0.1rem !important;
-            min-width: 0px !important; /* 좁아져도 버티도록 */
+        
+        /* 4. 이미지 중앙 정렬을 위한 컨테이너 */
+        .img-container {
+            display: flex;
+            justify-content: center;
+            margin-bottom: 10px;
         }
     </style>
     """, unsafe_allow_html=True)
@@ -83,8 +96,8 @@ def main():
 
         st.markdown(f"""
         <div style='text-align: center; margin-bottom: 20px;'>
-            <p style='font-size: 14px;'>총 {len(pool)}명 중 10문제</p>
-            <p style='color: #FF4B4B; font-weight: bold; font-size: 14px;'>빨리 맞출수록 고득점!🎶</p>
+            <p>총 {len(pool)}명 중 10문제</p>
+            <p style='color: #FF4B4B; font-weight: bold;'>빨리 맞출수록 고득점!🎶</p>
         </div>
         """, unsafe_allow_html=True)
         
@@ -115,25 +128,25 @@ def main():
     # [Step 1] 문제 풀이 화면
     elif st.session_state.step == 1:
         
-        # 🟢 [피드백 화면] (O / X 표시)
+        # 🟢 [피드백 화면] 정답/오답 시 전체 화면 덮어씌움 (놓칠 일 없음)
         if st.session_state.feedback:
             st.markdown("<div style='height: 80px;'></div>", unsafe_allow_html=True)
             
             if st.session_state.feedback['is_correct']:
-                # 정답 화면 (O)
+                # 정답 (O)
                 st.markdown("""
                 <div style='text-align: center;'>
-                    <h1 style='color: #4CAF50; font-size: 120px; margin: 0;'>⭕</h1>
-                    <h2 style='color: #4CAF50; margin-top: 10px;'>정답!</h2>
+                    <h1 style='color: #4CAF50; font-size: 100px; margin: 0;'>⭕</h1>
+                    <h2 style='color: #4CAF50;'>정답!</h2>
                 </div>
                 """, unsafe_allow_html=True)
             else:
-                # 오답 화면 (X) - 요청하신 대로 수정 (빨간 이름 제거, 한 줄 표시)
+                # 오답 (X)
                 correct_name = st.session_state.feedback['correct_answer']
                 st.markdown(f"""
                 <div style='text-align: center;'>
-                    <h1 style='color: #FF4B4B; font-size: 120px; margin: 0;'>❌</h1>
-                    <h3 style='color: #333; margin-top: 20px;'>정답은 <b>{correct_name}</b></h3>
+                    <h1 style='color: #FF4B4B; font-size: 100px; margin: 0;'>❌</h1>
+                    <h3 style='color: #333; margin-top: 10px;'>정답은 <b>{correct_name}</b></h3>
                 </div>
                 """, unsafe_allow_html=True)
             
@@ -142,7 +155,7 @@ def main():
             st.rerun()
             return
 
-        # ⚪ [문제 화면] 레이아웃 순서 변경
+        # ⚪ [문제 화면]
         st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
 
         current_q = st.session_state.quiz_set[st.session_state.q_idx]
@@ -150,23 +163,30 @@ def main():
 
         # 1. 질문 헤더
         st.markdown(f"""
-            <div style='display: flex; align-items: center; margin-bottom: 10px; justify-content: center;'>
+            <div style='display: flex; align-items: center; justify-content: center; margin-bottom: 5px;'>
                 <h3 style='margin: 0; margin-right: 8px; color: #31333F;'>Q{current_idx}</h3>
-                <span style='font-size: 16px; font-weight: bold;'>이 사람은 누구일까요?</span>
+                <span style='font-size: 15px; font-weight: bold;'>이 사람은 누구일까요?</span>
             </div>
             """, unsafe_allow_html=True)
 
-        # 2. 이미지 (화면 꽉 차게)
+        # 2. 이미지 (중앙 정렬 + 크기 고정)
+        # use_container_width=True를 빼고, width=220 픽셀 고정으로 넣습니다.
         if os.path.exists(current_q['img']):
             resized_img = load_and_resize_image(current_q['img'])
             if resized_img:
-                st.image(resized_img, use_container_width=True)
+                # 스트림릿 컬럼을 안 쓰고 HTML div로 중앙 정렬 유도할 수도 있지만,
+                # 가장 확실한 건 컬럼 3개 중 가운데에 넣는 것입니다.
+                c_left, c_center, c_right = st.columns([1, 10, 1]) 
+                with c_center:
+                    # 여기서 width를 지정하면 화면 꽉 차는 걸 막을 수 있습니다.
+                    st.image(resized_img, width=220) 
         else:
             st.error("이미지 없음")
 
         # 3. 보기 버튼 (1줄 4개 수평 나열)
-        st.markdown("<div style='height: 15px;'></div>", unsafe_allow_html=True) # 간격
-        # columns 사이에 갭을 아예 없애기 위해 gap 지정 안 함
+        st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
+        
+        # CSS로 강제했으므로 이제 columns(4)가 세로로 안 쌓입니다.
         c1, c2, c3, c4 = st.columns(4)
         opts = current_q['options']
         ans = current_q['answer']
@@ -191,10 +211,9 @@ def main():
         # 4. 타이머 (보기 밑에 중앙 정렬)
         timer_placeholder = st.empty()
 
-        # 타이머 루프
         for i in range(10, -1, -1):
             timer_html = f"""
-            <div style='text-align: center; font-size: 20px; font-weight: bold; color: #FF4B4B; margin-top: 15px;'>
+            <div style='text-align: center; font-size: 20px; font-weight: bold; color: #FF4B4B; margin-top: 10px;'>
                 ⏰ {i}
             </div>
             """
