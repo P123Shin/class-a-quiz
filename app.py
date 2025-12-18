@@ -4,7 +4,6 @@ import random
 import time
 import os
 from PIL import Image, ImageOps
-import streamlit.components.v1 as components
 
 # --- 1. 엑셀 데이터 불러오기 ---
 @st.cache_data(show_spinner=False)
@@ -44,60 +43,45 @@ if 'step' not in st.session_state:
     st.session_state.step = 0
     st.session_state.score = 0
     st.session_state.quiz_set = []
-
-# --- 4. 타이머 JS 코드 ---
-def get_timer_html():
-    return """
-    <div id="countdown-text" style="text-align: right; font-size: 20px; font-weight: bold; color: #FF4B4B; line-height: 1.2;">
-        ⏰ 10
-    </div>
-    <script>
-        let timeLeft = 10;
-        const timerElement = document.getElementById("countdown-text");
-        const countdown = setInterval(() => {
-            if (timeLeft <= 0) {
-                clearInterval(countdown);
-                timerElement.innerHTML = "⏰ 0";
-            } else {
-                timerElement.innerHTML = "⏰ " + timeLeft;
-            }
-            timeLeft -= 1;
-        }, 1000);
-    </script>
-    """
+    st.session_state.feedback = None # 정답/오답 판정 상태 저장용
 
 # --- 스타일 설정 ---
 st.markdown("""
     <style>
-        /* 버튼 스타일: 가로 4개 배치를 위해 패딩과 폰트 크기 조절 */
-        div.stButton > button {
-            margin: 0 auto;
-            display: block;
-            width: 100%;
-            padding: 0.4rem 0.1rem; /* 패딩을 줄여서 좁은 공간에 맞춤 */
-            font-size: 14px;        /* 폰트 크기를 약간 줄임 */
-        }
-        /* 앱 상단 여백 줄이기 */
+        /* 카톡 상단바 가림 방지 */
         .block-container {
-            padding-top: 1rem;
+            padding-top: 3rem !important;
+            padding-left: 1rem !important;
+            padding-right: 1rem !important;
+        }
+        /* 버튼 스타일 최적화 */
+        div.stButton > button {
+            width: 100%;
+            padding: 0.3rem 0.1rem !important;
+            font-size: 13px !important;
+            margin: 0px !important;
+            height: auto !important;
+            white-space: nowrap; 
+        }
+        div[data-testid="column"] {
+            padding: 0rem !important;
         }
     </style>
     """, unsafe_allow_html=True)
 
 def main():
-    # [공통] 제목
-    if st.session_state.step == 0 or st.session_state.step == 2:
-        st.markdown("<h3 style='text-align: center; margin-top: 10px;'>🧐 Guess Who?</h3>", unsafe_allow_html=True)
-
     # [Step 0] 시작 화면
     if st.session_state.step == 0:
+        st.markdown("<div style='height: 50px;'></div>", unsafe_allow_html=True)
+        st.markdown("<h3 style='text-align: center;'>🧐 Guess Who?</h3>", unsafe_allow_html=True)
+        
         pool, male_names, female_names = load_data()
         if pool is None: st.error("데이터 오류"); return
 
         st.markdown(f"""
-        <div style='text-align: center; margin-bottom: 20px;'>
+        <div style='text-align: center; margin-bottom: 30px;'>
             <p>총 {len(pool)}명 중 10문제 출제</p>
-            <p style='color: #FF4B4B; font-weight: bold;'>답을 빨리 맞출수록 점수가 올라갑니다🎶</p>
+            <p style='color: #FF4B4B; font-weight: bold;'>빨리 맞출수록 점수가 올라갑니다🎶</p>
         </div>
         """, unsafe_allow_html=True)
         
@@ -121,73 +105,124 @@ def main():
             st.session_state.step = 1
             st.session_state.q_idx = 0
             st.session_state.score = 0
+            st.session_state.feedback = None
             st.session_state.start_time = time.time()
             st.rerun()
 
     # [Step 1] 문제 풀이 화면
     elif st.session_state.step == 1:
-        # --- 상단 레이아웃 (질문 + 타이머) ---
-        # 왼쪽: "Q1 이 사람은 누구일까요?" / 오른쪽: 타이머
-        col_text, col_timer = st.columns([3, 1])
         
-        with col_text:
-            current_idx = st.session_state.q_idx + 1
-            # H3 태그와 span 태그를 섞어서 한 줄로 표현
-            st.markdown(f"""
-                <div style='display: flex; align-items: center; height: 40px;'>
-                    <h3 style='margin: 0; margin-right: 10px;'>Q{current_idx}</h3>
-                    <span style='font-weight: bold; font-size: 16px;'>이 사람은 누구일까요?</span>
+        # 🟢 [중요] 피드백 화면 (O / X 표시)
+        # feedback 상태가 있으면 문제 화면 대신 이걸 보여줌
+        if st.session_state.feedback:
+            st.markdown("<div style='height: 100px;'></div>", unsafe_allow_html=True) # 중앙 정렬용 여백
+            
+            if st.session_state.feedback['is_correct']:
+                # 정답 화면 (O)
+                st.markdown("""
+                <div style='text-align: center;'>
+                    <h1 style='color: #4CAF50; font-size: 150px; margin: 0;'>⭕</h1>
+                    <h2 style='color: #4CAF50;'>정답!</h2>
                 </div>
                 """, unsafe_allow_html=True)
-        
-        with col_timer:
-            # 타이머가 잘리지 않도록 높이를 충분히 줌 (height=50)
-            components.html(get_timer_html(), height=50, scrolling=False)
+            else:
+                # 오답 화면 (X)
+                correct_name = st.session_state.feedback['correct_answer']
+                st.markdown(f"""
+                <div style='text-align: center;'>
+                    <h1 style='color: #FF4B4B; font-size: 150px; margin: 0;'>❌</h1>
+                    <h3 style='color: #333;'>정답은...</h3>
+                    <h2 style='color: #FF4B4B; font-size: 40px;'>{correct_name}</h2>
+                </div>
+                """, unsafe_allow_html=True)
+            
+            # 1.5초 보여주고 다음 문제로 넘어감
+            time.sleep(1.5)
+            next_question() # 여기서 인덱스 증가하고 step 유지
+            st.rerun() # 화면 갱신
+            return # 아래 코드 실행 방지
 
-        # 시간 체크 로직
-        elapsed = time.time() - st.session_state.start_time
-        remaining = 10 - elapsed
-        if remaining < -0.5:
-            st.error("시간 초과!")
-            time.sleep(0.5)
-            next_question()
-            return
+        # ⚪ [일반] 문제 화면 (피드백이 없을 때)
+        st.markdown("<div style='height: 20px;'></div>", unsafe_allow_html=True)
 
         current_q = st.session_state.quiz_set[st.session_state.q_idx]
+        current_idx = st.session_state.q_idx + 1
+
+        # 질문 헤더
+        st.markdown(f"""
+            <div style='display: flex; align-items: center; margin-bottom: 5px;'>
+                <h3 style='margin: 0; margin-right: 8px; color: #31333F;'>Q{current_idx}</h3>
+                <span style='font-size: 16px; font-weight: bold;'>이 사람은 누구일까요?</span>
+            </div>
+            """, unsafe_allow_html=True)
+
+        # 이미지(7) : 타이머(3)
+        col_img, col_timer = st.columns([7, 3])
         
-        # --- 이미지 (중앙 정렬) ---
-        if os.path.exists(current_q['img']):
-            resized_img = load_and_resize_image(current_q['img'])
-            if resized_img:
-                # 이미지를 중앙에 배치하기 위한 컬럼 비율
-                c1, c2, c3 = st.columns([1, 4, 1])
-                with c2:
+        with col_img:
+            if os.path.exists(current_q['img']):
+                resized_img = load_and_resize_image(current_q['img'])
+                if resized_img:
                     st.image(resized_img, use_container_width=True)
-        
-        # --- 보기 버튼 (가로 4개 배열) ---
-        # st.columns(4)로 4개의 칸을 만듭니다.
-        c1, c2, c3, c4 = st.columns(4)
+            else:
+                st.error("이미지 없음")
+
+        timer_placeholder = col_timer.empty()
+
+        # 보기 버튼 (1줄 4개)
+        st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
+        c1, c2, c3, c4 = st.columns(4, gap="small")
         opts = current_q['options']
         ans = current_q['answer']
 
-        # 각 칸에 버튼 하나씩 배치 (use_container_width=True로 꽉 차게)
-        with c1:
-            if st.button(opts[0], key="opt0", use_container_width=True): check_answer(opts[0], ans)
-        with c2:
-            if st.button(opts[1], key="opt1", use_container_width=True): check_answer(opts[1], ans)
-        with c3:
-            if st.button(opts[2], key="opt2", use_container_width=True): check_answer(opts[2], ans)
-        with c4:
-            if st.button(opts[3], key="opt3", use_container_width=True): check_answer(opts[3], ans)
+        # 버튼 클릭 콜백
+        def handle_click(choice):
+            elapsed = time.time() - st.session_state.start_time
+            # 시간 초과인지 확인 (약간의 오차 허용)
+            if elapsed > 10.5:
+                # 시간 초과로 처리
+                st.session_state.feedback = {'is_correct': False, 'correct_answer': ans}
+            else:
+                score_gain = 100 + (max(0, 10 - elapsed) * 10)
+                if choice == ans:
+                    st.session_state.score += score_gain
+                    st.session_state.feedback = {'is_correct': True}
+                else:
+                    st.session_state.feedback = {'is_correct': False, 'correct_answer': ans}
+            
+            # 여기서 rerun하면 위쪽의 `if st.session_state.feedback:` 블록이 실행됨
+            
+        with c1: st.button(opts[0], key="btn0", on_click=handle_click, args=(opts[0],), use_container_width=True)
+        with c2: st.button(opts[1], key="btn1", on_click=handle_click, args=(opts[1],), use_container_width=True)
+        with c3: st.button(opts[2], key="btn2", on_click=handle_click, args=(opts[2],), use_container_width=True)
+        with c4: st.button(opts[3], key="btn3", on_click=handle_click, args=(opts[3],), use_container_width=True)
+
+        # 타이머 루프
+        for i in range(10, -1, -1):
+            timer_html = f"""
+            <div style='text-align: center; font-size: 24px; font-weight: bold; color: #FF4B4B; margin-top: 20px;'>
+                ⏰ {i}
+            </div>
+            """
+            timer_placeholder.markdown(timer_html, unsafe_allow_html=True)
+            
+            # 0초가 되면 시간초과 처리
+            if i == 0:
+                st.session_state.feedback = {'is_correct': False, 'correct_answer': ans}
+                st.rerun() # 피드백 화면을 보여주기 위해 리런
+            
+            time.sleep(1)
 
     # [Step 2] 종료 화면
     elif st.session_state.step == 2:
+        st.markdown("<div style='height: 50px;'></div>", unsafe_allow_html=True)
         st.balloons()
+        
         st.markdown(f"""
-        <div style="text-align: center; margin: 30px 0;">
+        <div style="text-align: center; margin: 20px 0;">
             <h2>🏆 최종 점수</h2>
-            <h1 style="color: #FF4B4B; font-size: 40px;">{int(st.session_state.score)} 점</h1>
-            <p style="background-color: #f0f2f6; padding: 10px; border-radius: 10px; margin-top: 20px;">
+            <h1 style="color: #FF4B4B; font-size: 50px;">{int(st.session_state.score)} 점</h1>
+            <p style="background-color: #f0f2f6; padding: 15px; border-radius: 10px; margin-top: 30px; font-weight: bold;">
                 📸 스크린샷을 찍어 결과를 공유하세요
             </p>
         </div>
@@ -197,35 +232,15 @@ def main():
             st.session_state.step = 0
             st.rerun()
 
-# --- 기능 함수 ---
-def check_answer(user, answer):
-    elapsed = time.time() - st.session_state.start_time
-    remaining = 10 - elapsed
-    
-    if remaining < 0:
-        st.toast(f"⏰ 시간 초과! (정답: {answer})", icon="⚠️")
-        time.sleep(1)
-        next_question()
-        return
-
-    if user == answer:
-        score = 100 + (remaining * 10)
-        st.session_state.score += score
-        st.toast("⭕ 정답!", icon="✅")
-    else:
-        st.toast(f"❌ 땡! 정답: {answer}", icon="❗")
-    
-    time.sleep(0.5)
-    next_question()
-
+# --- 내부 함수 ---
 def next_question():
+    # 다음 문제 인덱스로 이동, 피드백 초기화
+    st.session_state.feedback = None
     if st.session_state.q_idx + 1 < len(st.session_state.quiz_set):
         st.session_state.q_idx += 1
         st.session_state.start_time = time.time()
-        st.rerun()
     else:
         st.session_state.step = 2
-        st.rerun()
 
 if __name__ == "__main__":
     main()
