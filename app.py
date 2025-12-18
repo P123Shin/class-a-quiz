@@ -185,4 +185,54 @@ def main():
             
         with c1: st.button(opts[0], key="btn0", on_click=handle_click, args=(opts[0],), use_container_width=True)
         with c2: st.button(opts[1], key="btn1", on_click=handle_click, args=(opts[1],), use_container_width=True)
-        with c3: st.button(opts[2], key="btn2", on_click=handle_click, args=(opts[2],), use_container_width
+        with c3: st.button(opts[2], key="btn2", on_click=handle_click, args=(opts[2],), use_container_width=True)
+        with c4: st.button(opts[3], key="btn3", on_click=handle_click, args=(opts[3],), use_container_width=True)
+
+        # 4. 타이머 (보기 밑에 중앙 정렬)
+        timer_placeholder = st.empty()
+
+        # 타이머 루프
+        for i in range(10, -1, -1):
+            timer_html = f"""
+            <div style='text-align: center; font-size: 20px; font-weight: bold; color: #FF4B4B; margin-top: 15px;'>
+                ⏰ {i}
+            </div>
+            """
+            timer_placeholder.markdown(timer_html, unsafe_allow_html=True)
+            
+            if i == 0:
+                st.session_state.feedback = {'is_correct': False, 'correct_answer': ans}
+                st.rerun()
+            
+            time.sleep(1)
+
+    # [Step 2] 종료 화면
+    elif st.session_state.step == 2:
+        st.markdown("<div style='height: 50px;'></div>", unsafe_allow_html=True)
+        st.balloons()
+        
+        st.markdown(f"""
+        <div style="text-align: center; margin: 20px 0;">
+            <h2>🏆 최종 점수</h2>
+            <h1 style="color: #FF4B4B; font-size: 50px;">{int(st.session_state.score)} 점</h1>
+            <p style="background-color: #f0f2f6; padding: 12px; border-radius: 10px; margin-top: 30px; font-weight: bold; font-size: 14px;">
+                📸 스크린샷을 찍어 결과를 공유하세요
+            </p>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        if st.button("🔄 다시 풀기", use_container_width=True):
+            st.session_state.step = 0
+            st.rerun()
+
+# --- 내부 함수 ---
+def next_question():
+    st.session_state.feedback = None
+    if st.session_state.q_idx + 1 < len(st.session_state.quiz_set):
+        st.session_state.q_idx += 1
+        st.session_state.start_time = time.time()
+    else:
+        st.session_state.step = 2
+
+if __name__ == "__main__":
+    main()
