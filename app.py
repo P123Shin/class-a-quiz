@@ -45,11 +45,10 @@ if 'step' not in st.session_state:
     st.session_state.score = 0
     st.session_state.quiz_set = []
 
-# --- 4. 타이머용 자바스크립트 코드 (막대 제거됨) ---
-# 숫자만 카운트다운하는 HTML/JS입니다.
+# --- 4. 타이머 JS 코드 ---
 def get_timer_html():
     return """
-    <div id="countdown-text" style="text-align: right; font-size: 20px; font-weight: bold; color: #FF4B4B;">
+    <div id="countdown-text" style="text-align: right; font-size: 20px; font-weight: bold; color: #FF4B4B; line-height: 1.2;">
         ⏰ 10
     </div>
     <script>
@@ -70,19 +69,25 @@ def get_timer_html():
 # --- 스타일 설정 ---
 st.markdown("""
     <style>
+        /* 버튼 스타일: 가로 4개 배치를 위해 패딩과 폰트 크기 조절 */
         div.stButton > button {
             margin: 0 auto;
             display: block;
             width: 100%;
+            padding: 0.4rem 0.1rem; /* 패딩을 줄여서 좁은 공간에 맞춤 */
+            font-size: 14px;        /* 폰트 크기를 약간 줄임 */
+        }
+        /* 앱 상단 여백 줄이기 */
+        .block-container {
+            padding-top: 1rem;
         }
     </style>
     """, unsafe_allow_html=True)
 
 def main():
-    # [공통] 제목 (상단 여백 확보)
+    # [공통] 제목
     if st.session_state.step == 0 or st.session_state.step == 2:
-        st.markdown("<br><br>", unsafe_allow_html=True) 
-        st.markdown("<h3 style='text-align: center;'>🧐 Guess Who?</h3>", unsafe_allow_html=True)
+        st.markdown("<h3 style='text-align: center; margin-top: 10px;'>🧐 Guess Who?</h3>", unsafe_allow_html=True)
 
     # [Step 0] 시작 화면
     if st.session_state.step == 0:
@@ -121,24 +126,28 @@ def main():
 
     # [Step 1] 문제 풀이 화면
     elif st.session_state.step == 1:
-        # --- 상단 레이아웃 (좌: Q번호 / 우: 타이머) ---
-        col_q, col_timer = st.columns([1, 1])
+        # --- 상단 레이아웃 (질문 + 타이머) ---
+        # 왼쪽: "Q1 이 사람은 누구일까요?" / 오른쪽: 타이머
+        col_text, col_timer = st.columns([3, 1])
         
-        with col_q:
-            # 현재 문제 번호 표시 (예: Q1, Q2...)
+        with col_text:
             current_idx = st.session_state.q_idx + 1
-            st.markdown(f"<h3 style='margin:0; padding:0;'>Q{current_idx}</h3>", unsafe_allow_html=True)
+            # H3 태그와 span 태그를 섞어서 한 줄로 표현
+            st.markdown(f"""
+                <div style='display: flex; align-items: center; height: 40px;'>
+                    <h3 style='margin: 0; margin-right: 10px;'>Q{current_idx}</h3>
+                    <span style='font-weight: bold; font-size: 16px;'>이 사람은 누구일까요?</span>
+                </div>
+                """, unsafe_allow_html=True)
         
         with col_timer:
-            # 타이머 HTML 삽입 (오른쪽 정렬됨)
-            components.html(get_timer_html(), height=30)
+            # 타이머가 잘리지 않도록 높이를 충분히 줌 (height=50)
+            components.html(get_timer_html(), height=50, scrolling=False)
 
-        # 시간 체크 로직 (파이썬 내부용)
+        # 시간 체크 로직
         elapsed = time.time() - st.session_state.start_time
         remaining = 10 - elapsed
-        
-        # 파이썬 로직상 시간 초과 체크
-        if remaining < -0.5: # 0초 되고 약간의 유예 시간 후 넘김
+        if remaining < -0.5:
             st.error("시간 초과!")
             time.sleep(0.5)
             next_question()
@@ -146,38 +155,36 @@ def main():
 
         current_q = st.session_state.quiz_set[st.session_state.q_idx]
         
-        # 이미지 (200x200) - 중앙 정렬
+        # --- 이미지 (중앙 정렬) ---
         if os.path.exists(current_q['img']):
             resized_img = load_and_resize_image(current_q['img'])
             if resized_img:
-                col1, col2, col3 = st.columns([1, 2, 1])
-                with col2:
+                # 이미지를 중앙에 배치하기 위한 컬럼 비율
+                c1, c2, c3 = st.columns([1, 4, 1])
+                with c2:
                     st.image(resized_img, use_container_width=True)
         
-        st.markdown("<p style='text-align: center; font-weight: bold; margin: 5px 0;'>이 사람은 누구일까요?</p>", unsafe_allow_html=True)
-        
-        # 보기 버튼 2x2 배열
-        c1, c2 = st.columns(2)
+        # --- 보기 버튼 (가로 4개 배열) ---
+        # st.columns(4)로 4개의 칸을 만듭니다.
+        c1, c2, c3, c4 = st.columns(4)
+        opts = current_q['options']
+        ans = current_q['answer']
+
+        # 각 칸에 버튼 하나씩 배치 (use_container_width=True로 꽉 차게)
         with c1:
-            if st.button(current_q['options'][0], key="opt0", use_container_width=False):
-                check_answer(current_q['options'][0], current_q['answer'])
-            if st.button(current_q['options'][2], key="opt2", use_container_width=False):
-                check_answer(current_q['options'][2], current_q['answer'])
-        
+            if st.button(opts[0], key="opt0", use_container_width=True): check_answer(opts[0], ans)
         with c2:
-            if st.button(current_q['options'][1], key="opt1", use_container_width=False):
-                check_answer(current_q['options'][1], current_q['answer'])
-            if st.button(current_q['options'][3], key="opt3", use_container_width=False):
-                check_answer(current_q['options'][3], current_q['answer'])
+            if st.button(opts[1], key="opt1", use_container_width=True): check_answer(opts[1], ans)
+        with c3:
+            if st.button(opts[2], key="opt2", use_container_width=True): check_answer(opts[2], ans)
+        with c4:
+            if st.button(opts[3], key="opt3", use_container_width=True): check_answer(opts[3], ans)
 
     # [Step 2] 종료 화면
     elif st.session_state.step == 2:
         st.balloons()
-        
-        st.markdown("<br><br>", unsafe_allow_html=True)
-        
         st.markdown(f"""
-        <div style="text-align: center; margin: 20px 0;">
+        <div style="text-align: center; margin: 30px 0;">
             <h2>🏆 최종 점수</h2>
             <h1 style="color: #FF4B4B; font-size: 40px;">{int(st.session_state.score)} 점</h1>
             <p style="background-color: #f0f2f6; padding: 10px; border-radius: 10px; margin-top: 20px;">
@@ -195,7 +202,6 @@ def check_answer(user, answer):
     elapsed = time.time() - st.session_state.start_time
     remaining = 10 - elapsed
     
-    # 시간 초과 시 점수 없음
     if remaining < 0:
         st.toast(f"⏰ 시간 초과! (정답: {answer})", icon="⚠️")
         time.sleep(1)
